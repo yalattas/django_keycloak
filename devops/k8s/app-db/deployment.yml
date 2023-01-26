@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: app-database
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lime
+  template:
+    metadata:
+      labels:
+        app: lime
+    spec:
+      containers:
+      - name: app-db
+        image: mysql:8.0.28
+        imagePullPolicy: Always
+        ports:
+        - name: app-db-port
+          containerPort: 3306
+        envFrom:
+          - configMapRef:
+              name: mysql-config
+        volumeMounts:
+            - mountPath: /var/lib/mysql
+              name: mysql-volume-mount
+        # resources:
+        #     requests:
+        #       memory: "64Mi"
+        #       cpu: "250m"
+        #     limits:
+        #       memory: "128Mi"
+        #       cpu: "500m"
+      volumes:
+        - name: mysql-volume-mount
+          persistentVolumeClaim:
+            claimName: mysql-pvc

@@ -1,0 +1,87 @@
+{
+    "containerDefinitions": [
+        {
+            "name": "backend_service",
+            "image": "path/to/rep",
+            "cpu": 992,
+            "memory":1792,
+            "portMappings": [
+                {
+                    "containerPort": 8000,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "XRAY_HOST",
+                    "value": "127.0.0.1:2000"
+                }
+            ],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "secrets": [
+                {
+                    "name": "SECRET_KEY",
+                    "valueFrom": "arn:aws:ssm:eu-west-1:339749274924:parameter/dev_secret_key"
+                },
+                {
+                    "name": "DEBUG",
+                    "valueFrom": "arn:aws:ssm:eu-west-1:339749274924:parameter/dev_debug"
+                },
+                {
+                    "name": "APP_URL",
+                    "valueFrom": "arn:aws:ssm:eu-west-1:339749274924:parameter/dev_app_url"
+                },
+                {
+                    "name": "HOST_URL",
+                    "valueFrom": "arn:aws:ssm:eu-west-1:339749274924:parameter/dev_host_url"
+                },
+                {
+                    "name": "DATABASE_URL",
+                    "valueFrom": "arn:aws:ssm:eu-west-1:339749274924:parameter/dev_database_url"
+                },
+                {
+                    "name": "S3_ENABLED",
+                    "valueFrom": "arn:aws:ssm:eu-west-1:339749274924:parameter/dev_s3_enabled"
+                },
+                {
+                    "name": "AWS_STORAGE_BUCKET_NAME",
+                    "valueFrom": "arn:aws:ssm:eu-west-1:339749274924:parameter/dev_s3_bucket_name"
+                },
+                {
+                    "name": "CLOUDWATCH_ENABLED",
+                    "valueFrom": "arn:aws:ssm:eu-west-1:339749274924:parameter/dev_cloudwatch_enabled"
+                },
+                {
+                    "name": "CLOUDWATCH_LOG_GROUP",
+                    "valueFrom": "arn:aws:ssm:eu-west-1:339749274924:parameter/dev_cloudwatch_log_group"
+                },
+                {
+                    "name": "XRAY_TRACING_NAME",
+                    "valueFrom": "arn:aws:ssm:eu-west-1:339749274924:parameter/dev_xray_trace_name"
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/CLUSTER_NAME/SERVICE_NAME",
+                    "awslogs-region": "eu-west-1",
+                    "awslogs-stream-prefix": "ecs"
+                }
+            }
+        },
+        {
+            "name": "xray-daemon",
+            "image": "amazon/aws-xray-daemon",
+            "cpu": 32,
+            "memoryReservation": 256,
+            "portMappings": [
+                {
+                    "containerPort": 2000,
+                    "protocol": "udp"
+                }
+            ]
+        }
+    ]
+}

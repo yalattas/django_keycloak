@@ -1,0 +1,243 @@
+# Define the following variables in protected branch before attempting to trigger the following
+# 1- AWS_ACCESS_KEY_ID (4 users: dedicated user to ECR and 3 ECS users [dev, uat and prod])
+# 2- AWS_SECRET_ACCESS_KEY
+# 3- AWS_DEFAULT_REGION
+# 4- AWS_ACCOUNT_NUMBER (12 digits number)
+# 5- AWS_ECR_REGISTRY (no tags)(example: xxxxxxxxx.dkr.ecr.REGION.amazonaws.com/FOLDER/REPO)
+# 6- AWS_TASK_DEFINITION_NAME (string)[per environment]
+# 7- AWS_CLUSTER_NAME (string)[per environment]
+# 8- AWS_CLUSTER_SERVICE (string)[per environment]
+# 9- TASK_EXECUTION_ROLE (aws role such as dev_ecsTaskExecutionRole)[per environment]
+
+variables:
+  # The "Description" parameter is not well documented, but it causes the variable to be pre-populated on
+  # the "Run Pipeline" page and it displays the description.
+  TARGET_TASK:
+    value: ''
+    description: 'The task name to run on demand, which could be: build_dev'
+  IMAGE_TAG:
+    value: ''
+    description: 'The image tag to be pushed to ECR and ECS will call same tag to deploy it, Only prod environment'
+
+# This is the stages / task to perform in jobs
+stages:
+  - test
+  - build
+  - deploy
+  - release
+
+cache:
+  paths:
+    - ./.m2/repository
+    - target/
+
+sast:
+  stage: test
+include:
+- template: Security/SAST.gitlab-ci.yml
+
+# build jobs ----------------------------------------------
+# Job one, build on-demand dev
+build_dev:
+  image: docker:19.03.15
+  services:
+  - docker:19.03.15-dind
+  stage: build
+  environment:
+    name: dev
+  only:
+    refs:
+      - dev
+    # any of the following variables
+  before_script:
+    # apt: flag(-qq): very quite with no noise or many raw logs
+    # pip: flag(-q): very quite
+    - apk add --update python3 py-pip python3-dev build-base
+    - pip install -q awscli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - docker build -t $AWS_ECR_REGISTRY:dev-$CI_PIPELINE_ID .
+    - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_NUMBER.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+    - docker push $AWS_ECR_REGISTRY:dev-$CI_PIPELINE_ID
+
+build_uat:
+  image: docker:19.03.15
+  services:
+  - docker:19.03.15-dind
+  stage: build
+  environment:
+    name: uat
+  only:
+    refs:
+      - uat
+  before_script:
+    # apt: flag(-qq): very quite with no noise or many raw logs
+    # pip: flag(-q): very quite
+    - apk add --update python3 py-pip python3-dev build-base
+    - pip install -q awscli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - docker build -t $AWS_ECR_REGISTRY:uat-$CI_PIPELINE_ID .
+    - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_NUMBER.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+    - docker push $AWS_ECR_REGISTRY:uat-$CI_PIPELINE_ID
+
+build_prod:
+  image: docker:19.03.15
+  services:
+  - docker:19.03.15-dind
+  stage: build
+  environment:
+    name: main
+  only:
+    refs:
+      - main
+    # any of the following variables
+    variables:
+      - $IMAGE_TAG
+  before_script:
+    # apt: flag(-qq): very quite with no noise or many raw logs
+    # pip: flag(-q): very quite
+    - apk add --update python3 py-pip python3-dev build-base
+    - pip install -q awscli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - docker build -t $AWS_ECR_REGISTRY:$IMAGE_TAG .
+    - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_NUMBER.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+    - docker push $AWS_ECR_REGISTRY:$IMAGE_TAG
+
+# build jobs ends ----------------------------------------------
+# deploy jobs --------------------------------------------------
+# Job Two, Update task-definition and Deploy to ECS
+deploy_dev:
+  image: python:latest
+  stage: deploy
+  needs: ["build_dev"]
+  environment:
+    name: dev
+  only:
+    refs:
+      - dev
+  before_script:
+    - apt update -y
+    - apt install -y jq
+    - pip install awscli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - combined=$AWS_ECR_REGISTRY":dev-"$CI_PIPELINE_ID
+    - logGroup=/ecs/$AWS_CLUSTER_NAME/backend_service
+    # to adjust image URI in ./devops/ecs/containerDefinitions.json
+    - jq --arg var1 "$combined" '.containerDefinitions[0].image=$var1' ./devops/ecs/dev_containerDefinitions.json >> tmp && mv tmp ./devops/ecs/dev_containerDefinitions.json
+    # to adjust log-group name in ./devops/ecs/containerDefinitions.json
+    - jq --arg var2 "$logGroup" '.containerDefinitions[0].logConfiguration.options."awslogs-group"=$var2' ./devops/ecs/dev_containerDefinitions.json >> tmp && mv tmp ./devops/ecs/dev_containerDefinitions.json
+    # to adjust default-region in ./devops/ecs/containerDefinitions.json
+    - jq --arg var3 "$AWS_DEFAULT_REGION" '.containerDefinitions[0].logConfiguration.options."awslogs-region"=$var3' ./devops/ecs/dev_containerDefinitions.json >> tmp && mv tmp ./devops/ecs/dev_containerDefinitions.json
+    - aws ecs register-task-definition --family $AWS_TASK_DEFINITION_NAME --requires-compatibilities FARGATE
+              --region $AWS_DEFAULT_REGION
+              --task-role-arn arn:aws:iam::$AWS_ACCOUNT_NUMBER:role/$TASK_EXECUTION_ROLE
+              --execution-role-arn arn:aws:iam::$AWS_ACCOUNT_NUMBER:role/$TASK_EXECUTION_ROLE
+              --memory "2048"
+              --cpu 1024
+              --network-mode "awsvpc"
+              --cli-input-json file://./devops/ecs/dev_containerDefinitions.json
+    - latestTask=$(aws ecs describe-task-definition --task-definition $AWS_TASK_DEFINITION_NAME --query "taskDefinition.taskDefinitionArn")
+    - latest=$(echo $latestTask | grep -oP '(\d+)(?!.*\d)')
+    - aws ecs update-service --cluster $AWS_CLUSTER_NAME --service $AWS_CLUSTER_SERVICE --task-definition $AWS_TASK_DEFINITION_NAME:$latest
+
+deploy_uat:
+  image: python:latest
+  stage: deploy
+  needs: ["build_uat"]
+  environment:
+    name: uat
+  only:
+    refs:
+      - uat
+  before_script:
+    - apt update -y
+    - apt install -y jq
+    - pip install awscli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - combined=$AWS_ECR_REGISTRY":uat-"$CI_PIPELINE_ID
+    - logGroup=/ecs/$AWS_CLUSTER_NAME/backend_service
+    # to adjust image URI in ./devops/ecs/containerDefinitions.json
+    - jq --arg var1 "$combined" '.containerDefinitions[0].image=$var1' ./devops/ecs/uat_containerDefinitions.json >> tmp && mv tmp ./devops/ecs/uat_containerDefinitions.json
+    # to adjust log-group name in ./devops/ecs/containerDefinitions.json
+    - jq --arg var2 "$logGroup" '.containerDefinitions[0].logConfiguration.options."awslogs-group"=$var2' ./devops/ecs/uat_containerDefinitions.json >> tmp && mv tmp ./devops/ecs/uat_containerDefinitions.json
+    # to adjust default-region in ./devops/ecs/containerDefinitions.json
+    - jq --arg var3 "$AWS_DEFAULT_REGION" '.containerDefinitions[0].logConfiguration.options."awslogs-region"=$var3' ./devops/ecs/uat_containerDefinitions.json >> tmp && mv tmp ./devops/ecs/uat_containerDefinitions.json
+    - aws ecs register-task-definition --family $AWS_TASK_DEFINITION_NAME --requires-compatibilities FARGATE
+              --region $AWS_DEFAULT_REGION
+              --task-role-arn arn:aws:iam::$AWS_ACCOUNT_NUMBER:role/$TASK_EXECUTION_ROLE
+              --execution-role-arn arn:aws:iam::$AWS_ACCOUNT_NUMBER:role/$TASK_EXECUTION_ROLE
+              --memory "2048"
+              --cpu 1024
+              --network-mode "awsvpc"
+              --cli-input-json file://./devops/ecs/uat_containerDefinitions.json
+    - latestTask=$(aws ecs describe-task-definition --task-definition $AWS_TASK_DEFINITION_NAME --query "taskDefinition.taskDefinitionArn")
+    - latest=$(echo $latestTask | grep -oP '(\d+)(?!.*\d)')
+    - aws ecs update-service --cluster $AWS_CLUSTER_NAME --service $AWS_CLUSTER_SERVICE --task-definition $AWS_TASK_DEFINITION_NAME:$latest
+
+deploy_prod:
+  image: python:latest
+  stage: deploy
+  needs: ["build_prod"]
+  environment:
+    name: main
+  only:
+    refs:
+      - main
+    variables:
+      - $IMAGE_TAG
+  before_script:
+    - apt update -y
+    - apt install -y jq
+    - pip install awscli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - combined=$AWS_ECR_REGISTRY":"$IMAGE_TAG
+    - logGroup=/ecs/$AWS_CLUSTER_NAME/backend_service
+    # to adjust image URI in ./devops/ecs/containerDefinitions.json
+    - jq --arg var1 "$combined" '.containerDefinitions[0].image=$var1' ./devops/ecs/main_containerDefinitions.json >> tmp && mv tmp ./devops/ecs/main_containerDefinitions.json
+    # to adjust log-group name in ./devops/ecs/containerDefinitions.json
+    - jq --arg var2 "$logGroup" '.containerDefinitions[0].logConfiguration.options."awslogs-group"=$var2' ./devops/ecs/main_containerDefinitions.json >> tmp && mv tmp ./devops/ecs/main_containerDefinitions.json
+    # to adjust default-region in ./devops/ecs/containerDefinitions.json
+    - jq --arg var3 "$AWS_DEFAULT_REGION" '.containerDefinitions[0].logConfiguration.options."awslogs-region"=$var3' ./devops/ecs/main_containerDefinitions.json >> tmp && mv tmp ./devops/ecs/main_containerDefinitions.json
+    - aws ecs register-task-definition --family $AWS_TASK_DEFINITION_NAME --requires-compatibilities FARGATE
+              --region $AWS_DEFAULT_REGION
+              --task-role-arn arn:aws:iam::$AWS_ACCOUNT_NUMBER:role/$TASK_EXECUTION_ROLE
+              --execution-role-arn arn:aws:iam::$AWS_ACCOUNT_NUMBER:role/$TASK_EXECUTION_ROLE
+              --memory "2048"
+              --cpu 1024
+              --network-mode "awsvpc"
+              --cli-input-json file://./devops/ecs/main_containerDefinitions.json
+    - latestTask=$(aws ecs describe-task-definition --task-definition $AWS_TASK_DEFINITION_NAME --query "taskDefinition.taskDefinitionArn")
+    - latest=$(echo $latestTask | grep -oP '(\d+)(?!.*\d)')
+    - aws ecs update-service --cluster $AWS_CLUSTER_NAME --service $AWS_CLUSTER_SERVICE --task-definition $AWS_TASK_DEFINITION_NAME:$latest
+
+# deploy jobs --------------------------------------------------
+
+# Flat job: registering release to GitLab release management section
+release_job:
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  stage: release
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - echo 'release job'
+  release:
+    name: 'Release $CI_COMMIT_TAG'
+    tag_name: '$CI_COMMIT_TAG'
+    description: './CHANGELOG.md'

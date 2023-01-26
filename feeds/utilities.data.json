@@ -1,0 +1,18 @@
+{
+    "cities": [
+        {
+            "name_ar":"جدة",
+            "name_en":"jeddah",
+            "districts": [
+                {
+                    "name_ar":"المنار",
+                    "name_en":"al manar"
+                },
+                {
+                    "name_ar":"النسيم",
+                    "name_en":"al naseem"
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-db
+  namespace: dev
+  # this label has no impact so far
+  labels:
+    app: lime
+spec:
+  # this maps to deployment label
+  selector:
+    app: lime
+  ports:
+  - protocol: TCP
+    port: 3306
+    targetPort: app-db-port
+  type: LoadBalancer

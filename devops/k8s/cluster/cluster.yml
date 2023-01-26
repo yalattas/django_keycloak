@@ -1,0 +1,165 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: yasser-cluster
+  region: us-east-1
+
+# new vpc
+vpc:
+  cidr: 10.0.0.0/16
+  # subnets:
+  #   public:
+  #     public1:
+  #       id: "public1"
+  #     public2:
+  #       id: "public2"
+  #     public3:
+  #       id: "public3"
+  #   private:
+  #     private1:
+  #       id: "private1"
+  #     private2:
+  #       id: "private2"
+  #     private3:
+  #       id: "private3"
+  manageSharedNodeSecurityGroupRules: true
+  nat:
+    gateway: Single
+
+# # exist vpc
+# vpc:
+#   id: "vpc-12345"
+#   securityGroup: "sg-12345"    # this is the ControlPlaneSecurityGroup
+#   subnets:
+#     private:
+#       private1:
+#           id: "subnet-12345"
+#       private2:
+#           id: "subnet-67890"
+#     public:
+#       public1:
+#           id: "subnet-12345"
+#       public2:
+#           id: "subnet-67890"
+
+managedNodeGroups:
+  - name: worker-nodes
+    amiFamily: AmazonLinux2
+    labels: { role: worker }
+    # instanceSelector: {}
+    instanceType: t3a.medium
+    desiredCapacity: 2
+    maxSize: 4
+    minSize: 1
+    volumeIOPS: 3000
+    volumeSize: 80
+    volumeThroughput: 125
+    volumeType: gp3
+    privateNetworking: true
+    # availabilityZones:
+    #   - us-east-1a
+    iam:
+      withAddonPolicies:
+        albIngress: true
+        appMesh: false
+        appMeshPreview: false
+        autoScaler: true
+        awsLoadBalancerController: true
+        certManager: true
+        cloudWatch: true
+        ebs: false
+        efs: false
+        externalDNS: false
+        fsx: false
+        imageBuilder: false
+        xRay: false
+    ssh: # import public key from file
+      publicKey: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCfD8u5dXPYM0plXhV876bMq8vU0wYlmaWPJEQAu8MoGEUSEySZOLXlkyrmi3o/9pc5y2FbEpdUkGrev9R2fdTqt4EnFEPcy4FxProBXGGkBm6Wo4ca3JTkJzA9UI8CYuxqvpmVcwVToG94pKUuSMYuoIU4/EkVZtgw0DzSNgT7Bf10PO7Y7Xafn7Qrea3lfYQ9/VbQ+b2zSylHl1y0emQ/0pVTq8R5jw0b54miYdlVOq1I3H7SFgAA8Gb8oMUO0gGhHQbq9VAzp9dTcJbnDxOKOAOILq+MRUjBBYsnBUwgJ+z+Wac2gzCKBhJcm5DJR98Km8DZY0MU/ZNJT24e80KoG7YjqUcB6J6tKZgjEp8elXP1pf2W7x3sAV709dt3FZJjDrLg1676V5KX/gTFu3QAzJmAqZAmd0Q1mF/55hWRBoJYEl2MLQfEpOMIjhzWHwDOqDilb/hmLSNj1HEYu+fA5msLsKkNMugLbuY45nxEXqXWpGE5a+hyl64pd6+6BBf0mYVlYE+bNjAOKNoMbNgNkF8t0KImYAOs4gx1KpMneNe804AFk/c00ZDJYBkdRIzevXMGCa3GJYGyhWn0sefnmxYGSidjTN5voTN+gmDsFdizX56SgnTRJPnToAvnPyZnyKfJvsATGuXmpJ8RqyQRY1i/IyaL0m5cj/Q0Y6XpFw== y.alattas@puritec.sa
+      # publicKeyPath: /path/to/key
+      enableSsm: true
+    tags:
+      alpha.eksctl.io/nodegroup-name: worker-nodes
+      alpha.eksctl.io/nodegroup-type: managed
+      Cost Center: spot
+  - name: building-nodes
+    amiFamily: AmazonLinux2
+    labels: { role: builder }
+    # instanceSelector: {}
+    instanceType: t3a.medium
+    desiredCapacity: 1
+    maxSize: 5
+    minSize: 1
+    volumeIOPS: 3000
+    volumeSize: 80
+    volumeThroughput: 125
+    volumeType: gp3
+    privateNetworking: true
+    # availabilityZones:
+    #   - us-east-1b
+    iam:
+      withAddonPolicies:
+        albIngress: true
+        appMesh: false
+        appMeshPreview: false
+        autoScaler: true
+        awsLoadBalancerController: true
+        certManager: true
+        cloudWatch: true
+        ebs: false
+        efs: false
+        externalDNS: false
+        fsx: false
+        imageBuilder: true
+        xRay: false
+    ssh: # import public key from file
+      publicKey: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCfD8u5dXPYM0plXhV876bMq8vU0wYlmaWPJEQAu8MoGEUSEySZOLXlkyrmi3o/9pc5y2FbEpdUkGrev9R2fdTqt4EnFEPcy4FxProBXGGkBm6Wo4ca3JTkJzA9UI8CYuxqvpmVcwVToG94pKUuSMYuoIU4/EkVZtgw0DzSNgT7Bf10PO7Y7Xafn7Qrea3lfYQ9/VbQ+b2zSylHl1y0emQ/0pVTq8R5jw0b54miYdlVOq1I3H7SFgAA8Gb8oMUO0gGhHQbq9VAzp9dTcJbnDxOKOAOILq+MRUjBBYsnBUwgJ+z+Wac2gzCKBhJcm5DJR98Km8DZY0MU/ZNJT24e80KoG7YjqUcB6J6tKZgjEp8elXP1pf2W7x3sAV709dt3FZJjDrLg1676V5KX/gTFu3QAzJmAqZAmd0Q1mF/55hWRBoJYEl2MLQfEpOMIjhzWHwDOqDilb/hmLSNj1HEYu+fA5msLsKkNMugLbuY45nxEXqXWpGE5a+hyl64pd6+6BBf0mYVlYE+bNjAOKNoMbNgNkF8t0KImYAOs4gx1KpMneNe804AFk/c00ZDJYBkdRIzevXMGCa3GJYGyhWn0sefnmxYGSidjTN5voTN+gmDsFdizX56SgnTRJPnToAvnPyZnyKfJvsATGuXmpJ8RqyQRY1i/IyaL0m5cj/Q0Y6XpFw== y.alattas@puritec.sa
+      # publicKeyPath: /path/to/key
+      enableSsm: true
+    tags:
+      alpha.eksctl.io/nodegroup-name: builder-nodes
+      alpha.eksctl.io/nodegroup-type: managed
+      Cost Center: spot
+
+cloudWatch:
+  clusterLogging:
+    enableTypes:
+      - "audit"
+      - "authenticator"
+      - "api"
+
+iam:
+  vpcResourceControllerPolicy: true
+  withOIDC: true
+  serviceAccounts:
+  - metadata:
+      name: aws-load-balancer-controller
+      namespace: kube-system
+    wellKnownPolicies:
+      awsLoadBalancerController: true
+
+addons:
+- name: vpc-cni
+  version: 1.7.5 # optional
+  attachPolicyARNs: #optional
+  - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+  # serviceAccountRoleARN: arn:aws:iam::aws:policy/AmazonEKSCNIAccess # optional
+  tags: # optional
+    team: eks
+    Cost Center: spot
+  attachPolicy: # optional
+    Statement:
+    - Effect: Allow
+      Action:
+      - ec2:AssignPrivateIpAddresses
+      - ec2:AttachNetworkInterface
+      - ec2:CreateNetworkInterface
+      - ec2:DeleteNetworkInterface
+      - ec2:DescribeInstances
+      - ec2:DescribeTags
+      - ec2:DescribeNetworkInterfaces
+      - ec2:DescribeInstanceTypes
+      - ec2:DetachNetworkInterface
+      - ec2:ModifyNetworkInterfaceAttribute
+      - ec2:UnassignPrivateIpAddresses
+      Resource: '*'

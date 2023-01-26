@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keyclock-backend-config
+  namespace: dev
+  labels:
+    app: keyclock
+data:
+  KC_DB: "postgres"
+  KC_HOSTNAME: "localhost:8443"
+  KC_DB_URL: "jdbc:postgresql://iam.db.notification.local/keyclock"
+  KC_HEALTH_ENABLED: "true"
+  KC_DB_USERNAME: "postgres"
+  KC_DB_PASSWORD: "123123"
+  KC_METRICS_ENABLED: "false"
+  KEYCLOAK_ADMIN: "admin"
+  KEYCLOAK_ADMIN_PASSWORD: "admin"
+  KC_HTTP_ENABLED: "false"

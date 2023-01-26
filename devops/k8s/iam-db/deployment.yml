@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: iam-database
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keyclock
+  template:
+    metadata:
+      labels:
+        app: keyclock
+    spec:
+      containers:
+      - name: postgres-db
+        image: postgres:13-alpine
+        imagePullPolicy: Always
+        ports:
+        - name: iam-db-port
+          containerPort: 5432
+        envFrom:
+          - configMapRef:
+              name: postgres-config
+        volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: postgres-volume-mount
+        # resources:
+        #     requests:
+        #       memory: "64Mi"
+        #       cpu: "250m"
+        #     limits:
+        #       memory: "128Mi"
+        #       cpu: "500m"
+      volumes:
+        - name: postgres-volume-mount
+          persistentVolumeClaim:
+            claimName: postgres-pvc

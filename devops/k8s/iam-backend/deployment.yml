@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iam-backend
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keyclock
+      link: monolithic
+  template:
+    metadata:
+      labels:
+        app: keyclock
+        link: monolithic
+    spec:
+      containers:
+      - name: keyclock-backend
+        # image: 039754395781.dkr.ecr.us-east-1.amazonaws.com/munjiz/backend:v0.0.7
+        image: local/keyclock:0
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: '/'
+            port: 8443
+          initialDelaySeconds: 30
+          periodSeconds: 40
+          failureThreshold: 60
+        readinessProbe:
+          httpGet:
+            path: '/'
+            port: 8443
+          initialDelaySeconds: 30
+          periodSeconds: 40
+          failureThreshold: 60
+        ports:
+        - name: iam-port
+          containerPort: 8443
+          protocol: TCP
+        envFrom:
+          - configMapRef:
+              name: keyclock-backend-config
+        # resources:
+        #     requests:
+        #       memory: '2Gi'
+        #       cpu: '500m'
+        #     limits:
+        #       memory: '2Gi'
+        #       cpu: '500m'

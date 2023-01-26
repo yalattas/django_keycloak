@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-backend-config
+  namespace: dev
+  labels:
+    app: lime
+data:
+  DB_HOST: "app-db"
+  DB_NAME: "pure"
+  DB_USERNAME: "username"
+  DB_PASSWORD: "123123"
+  ADMIN_PASSWORD: "123123"

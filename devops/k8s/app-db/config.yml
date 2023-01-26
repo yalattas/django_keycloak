@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-config
+  namespace: dev
+  labels:
+    app: lime
+data:
+  MYSQL_DATABASE: "pure"
+  MYSQL_USER: "username"
+  MYSQL_PASSWORD: "123123"
+  MYSQL_ROOT_PASSWORD: "password"

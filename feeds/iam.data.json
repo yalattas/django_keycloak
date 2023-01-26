@@ -1,0 +1,10 @@
+{
+    "groups": [
+        {
+            "name": "Admin"
+        },
+        {
+            "name": "CustomerGroup"
+        }
+    ]
+}

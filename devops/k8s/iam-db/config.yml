@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: dev
+  labels:
+    app: keyclock
+data:
+  POSTGRES_DB: "keyclock"
+  POSTGRES_USER: "postgres"
+  POSTGRES_PASSWORD: "123123"

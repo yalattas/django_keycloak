@@ -1,0 +1,14 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: yasser
+  region: us-east-2
+
+managedNodeGroups:
+  - name: worker
+    labels: { role: worker }
+    instanceType: t3a.medium
+    desiredCapacity: 2
+    maxSize: 5
+    minSize: 1
